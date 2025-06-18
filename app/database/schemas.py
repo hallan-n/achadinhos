@@ -2,7 +2,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime
 
-from database.connection import metadata
+from database.metadata import metadata
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table
 
 logins = Table(
@@ -14,6 +14,15 @@ logins = Table(
     Column("role", String(255)),
     Column("url_base_site", String(255)),
     Column("url_base_affiliate", String(255)),
+)
+
+posts = Table(
+    "posts",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("description", String(255)),
+    Column("path", String(255)),
+    Column("user_id", Integer, ForeignKey("users.id")),
 )
 
 

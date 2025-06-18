@@ -27,16 +27,29 @@ async def _inject_session(page: Page, session: Session):
     await page.context.add_cookies(session.cookies)
 
 
-async def _get_stealth_page(browser: Browser) -> Page:
-    context = await browser.new_context(
-        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        viewport={"width": 1280, "height": 720},
-        device_scale_factor=1,
-        is_mobile=False,
-        has_touch=False,
-        locale="pt-BR",
-        timezone_id="America/Sao_Paulo",
-    )
+async def _get_stealth_page(browser: Browser, mobile: bool = False) -> Page:
+    if mobile:
+        config = {
+            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 13_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Mobile/15E148 Safari/604.1",
+            "viewport": {"width": 375, "height": 667},
+            "device_scale_factor": 2,
+            "is_mobile": True,
+            "has_touch": True,
+            "locale": "pt-BR",
+            "timezone_id": "America/Sao_Paulo",
+        }
+    else:
+        config = {
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "viewport": {"width": 1280, "height": 720},
+            "device_scale_factor": 1,
+            "is_mobile": False,
+            "has_touch": False,
+            "locale": "pt-BR",
+            "timezone_id": "America/Sao_Paulo",
+        }
+
+    context = await browser.new_context(**config)
     page = await context.new_page()
 
     await page.add_init_script(
@@ -120,7 +133,7 @@ async def get_login_session(login: dict = None) -> Session | None:
         return session
 
 
-async def publish_post(session: Session):
+async def publish_post(session: Session, post: dict = None):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=False,
@@ -130,10 +143,16 @@ async def publish_post(session: Session):
                 "--disable-dev-shm-usage",
             ],
         )
-        page = await _get_stealth_page(browser)
+        page = await _get_stealth_page(browser, mobile=False)
         await _inject_session(page, session)
         await page.goto("https://www.instagram.com/")
 
+        await page.wait_for_timeout(2000)
+        skip_dialog = await page.query_selector("div[aria-label='Fechar']")
+        if skip_dialog:
+            await skip_dialog.click()
+
+        await page.wait_for_timeout(2000)
         await page.click('span:has-text("Criar")')
         await page.wait_for_timeout(2000)
 
@@ -141,16 +160,36 @@ async def publish_post(session: Session):
         if not input_post:
             raise Exception("Input de upload do post não encontrado.")
 
-        await input_post.set_input_files("app/post.jpeg")
+        await input_post.set_input_files(post["path"])
         await page.wait_for_timeout(2000)
         await page.get_by_role("button", name="Avançar").click()
         await page.wait_for_timeout(2000)
         await page.get_by_role("button", name="Avançar").click()
         await page.wait_for_timeout(2000)
-        await page.fill('div[aria-label="Escreva uma legenda..."]', "Testando")
+        await page.fill('div[aria-label="Escreva uma legenda..."]', post["description"])
         await page.wait_for_timeout(2000)
         await page.get_by_role("button", name="Compartilhar").click()
 
         await page.wait_for_selector('h3:has-text("Seu post foi compartilhado.")')
 
-        breakpoint()
+
+async def publish_storie(session: Session, post: dict = None):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+            ],
+        )
+        page = await _get_stealth_page(browser, mobile=False)
+        await _inject_session(page, session)
+        await page.goto("https://www.instagram.com/")
+
+        await page.wait_for_timeout(2000)
+        skip_dialog = await page.query_selector("div[aria-label='Fechar']")
+        if skip_dialog:
+            await skip_dialog.click()
+
+        ...
