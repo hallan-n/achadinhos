@@ -8,7 +8,7 @@ logger.add(
     sys.stderr,
     format=(
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-        "<level><cyan>{level:<8}</cyan></level> | "
+        "<level>{level:<8}</level> | "
         "<magenta>{file}</magenta>:<yellow>{line}</yellow> | "
         "<level>{message}</level>"
     ),
