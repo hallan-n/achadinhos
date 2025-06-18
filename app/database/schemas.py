@@ -1,3 +1,5 @@
+import json
+from dataclasses import asdict, dataclass
 from datetime import datetime
 
 from database.connection import metadata
@@ -27,5 +29,20 @@ products = Table(
     Column("url", String(255)),
     Column("thumbnail", String(255)),
     Column("fetched_at", DateTime, default=datetime.utcnow),
-    # Column("user_id", Integer, ForeignKey("users.id"))
 )
+
+
+@dataclass
+class Session:
+    state: dict
+    cookies: dict
+    local_storage: dict
+    session_storage: dict
+    login_at: str
+    login_id: int
+
+    def dict(self):
+        return asdict(self)
+
+    def json(self):
+        return json.dumps(asdict(self))
