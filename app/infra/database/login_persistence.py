@@ -1,7 +1,6 @@
-from sqlalchemy import insert
-
 from infra.database.connection import engine
 from infra.database.schemas import logins
+from sqlalchemy import insert
 
 
 async def insert_user():

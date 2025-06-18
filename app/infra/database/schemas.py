@@ -1,8 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table
-
 from infra.database.connection import metadata
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table
 
 logins = Table(
     "logins",
