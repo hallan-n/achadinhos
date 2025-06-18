@@ -1,16 +1,26 @@
 [project]
-name = "promopanda"
+name = "achadinhos"
 version = "0.1.0"
 description = ""
+package-mode = false
 authors = [
     {name = "hallan-n",email = "hallanneves01@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<4.0"
 dependencies = [
+    "sqlalchemy (>=2.0.41,<3.0.0)",
+    "aiomysql (>=0.2.0,<0.3.0)",
+    "cryptography (>=45.0.4,<46.0.0)",
+    "loguru (>=0.7.3,<0.8.0)"
 ]
 
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.1.0"
+isort = "^6.0.1"
+
