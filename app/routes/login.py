@@ -1,3 +1,4 @@
+from database.schemas import VerifyCode
 from cache import set_value
 from database.login_persistence import (
     insert_user,
@@ -7,21 +8,46 @@ from database.login_persistence import (
 from routes.dto import GetLogin, PostLogin
 from fastapi import APIRouter, HTTPException
 from logger import logger
-from external.webbot import get_login_session
+from external.instagram import get_instagram_session
+from external.amazon import get_amazon_session
 
 route = APIRouter(prefix="/login", tags=["Login"])
+stored_code = None
 
+@route.post("/code")
+async def receive_code(code: VerifyCode):
+    global stored_code
+    stored_code = code.code
+    return {"success": True}
+
+@route.get("/code")
+async def get_code():
+    global stored_code
+    code = stored_code
+    stored_code = None
+    return {"code": code}
 
 @route.post("/", response_model=GetLogin)
 async def post_login(login: PostLogin) -> GetLogin:
     try:
-        session = await get_login_session(login.model_dump())
+        match login.role:
+            case "instagram":
+                session = await get_instagram_session(login.model_dump())
+            case "amazon":
+                session = await get_amazon_session(login.model_dump())
+            case _:
+                logger.error(f"Role {login.role} não esperada")
+                HTTPException(401, f"Role {login.role} não esperada")
+
         if not session:
             raise HTTPException(401, f"Erro ao realizar login no {login.role}")
+
         resp = await insert_user(login.model_dump())
         logger.info("Login inserido com sucesso.")
         await set_value(f"{resp['role']}:{resp['id']}", session.json())
         return GetLogin(**resp)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Erro ao inserir login: {e}")
         raise HTTPException(500, str(e))

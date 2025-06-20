@@ -42,15 +42,21 @@ products = Table(
 
 
 @dataclass
-class Session:
+class Base:
+    def dict(self):
+        return asdict(self)
+
+    def json(self):
+        return json.dumps(asdict(self))
+
+@dataclass
+class Session(Base):
     state: dict
     cookies: dict
     local_storage: dict
     session_storage: dict
     login_at: str
 
-    def dict(self):
-        return asdict(self)
-
-    def json(self):
-        return json.dumps(asdict(self))
+@dataclass
+class VerifyCode(Base):
+    code: str
