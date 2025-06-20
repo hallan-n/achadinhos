@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
 
-from external.stealth_session import apply_stealth_session, _get_stealth_page
 from database.schemas import Session
+from external.stealth_session import _get_stealth_page, apply_stealth_session
 from logger import logger
 from playwright.async_api import async_playwright
 
@@ -25,7 +25,9 @@ async def get_instagram_session(login: dict) -> Session:
         await page.click('button[type="submit"]')
         await page.wait_for_timeout(1000)
 
-        error_pwd = await page.query_selector("text=Sua senha está incorreta. Confira-a.")
+        error_pwd = await page.query_selector(
+            "text=Sua senha está incorreta. Confira-a."
+        )
         if error_pwd:
             raise Exception("Senha incorreta")
 
@@ -34,7 +36,9 @@ async def get_instagram_session(login: dict) -> Session:
         state = await page.context.storage_state()
         cookies = await page.context.cookies()
         local_storage = await page.evaluate("() => JSON.stringify(window.localStorage)")
-        session_storage = await page.evaluate("() => JSON.stringify(window.sessionStorage)")
+        session_storage = await page.evaluate(
+            "() => JSON.stringify(window.sessionStorage)"
+        )
         logger.info("Login realizado com sucesso.")
         return Session(
             state=state,
@@ -43,7 +47,6 @@ async def get_instagram_session(login: dict) -> Session:
             session_storage=json.loads(session_storage),
             login_at=datetime.now().isoformat(),
         )
-
 
 
 async def publish_post(session: Session, post: dict):

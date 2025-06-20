@@ -1,7 +1,9 @@
 import json
+
 from database.schemas import Session
 from logger import logger
 from playwright.async_api import Browser, Page
+
 
 async def _inject_session(page: Page, session: Session):
     logger.info("Injetando sessão")
@@ -86,7 +88,9 @@ async def _get_stealth_page(browser: Browser, mobile: bool = False) -> Page:
     return page
 
 
-async def apply_stealth_session(browser: Browser, session: Session, mobile: bool = False) -> Page:
+async def apply_stealth_session(
+    browser: Browser, session: Session, mobile: bool = False
+) -> Page:
     page = await _get_stealth_page(browser, mobile)
     await _inject_session(page, session)
     return page

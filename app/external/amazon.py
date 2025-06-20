@@ -2,18 +2,19 @@
 # import json
 # from database.schemas import Session
 # from cache import get_value
-# from selectolax.parser import HTMLParser
-
 import asyncio
 import json
+import re
 from datetime import datetime
 
 import httpx
-
-from external.stealth_session import _get_stealth_page
+from cache import get_value
 from database.schemas import Session
+from external.stealth_session import _get_stealth_page, apply_stealth_session
 from logger import logger
-from playwright.async_api import async_playwright
+from playwright.async_api import Browser, BrowserContext, async_playwright
+from selectolax.parser import HTMLParser
+
 
 async def get_amazon_session(login: dict) -> Session:
     async with async_playwright() as p:
@@ -33,29 +34,27 @@ async def get_amazon_session(login: dict) -> Session:
         if skip:
             await skip.click()
 
-
         await page.click('a[data-nav-role="signin"]')
         await page.wait_for_timeout(2000)
-        await page.fill('input#ap_email_login', login['user'])
+        await page.fill("input#ap_email_login", login["user"])
         await page.click('input[type="submit"]')
-        
+
         await page.wait_for_timeout(2000)
-        user_fail = await page.query_selector('text=Parece que você é novo na Amazon')
+        user_fail = await page.query_selector("text=Parece que você é novo na Amazon")
         if user_fail:
-            raise Exception('Login incorreto')
-        
-        await page.fill('input#ap_password', login['password'])
-        await page.click('input[type="submit"]')    
+            raise Exception("Login incorreto")
+
+        await page.fill("input#ap_password", login["password"])
+        await page.click('input[type="submit"]')
 
         await page.wait_for_timeout(2000)
-        pwd_fail = await page.query_selector('text=Houve um problema')
+        pwd_fail = await page.query_selector("text=Houve um problema")
         if pwd_fail:
-            raise Exception('Senha incorreta')
-
+            raise Exception("Senha incorreta")
 
         verify_code = None
         async with httpx.AsyncClient() as client:
-            logger.info('Informe o código de verificação')
+            logger.info("Informe o código de verificação")
             for _ in range(300):
                 response = await client.get("http://localhost:8000/login/code")
                 data = response.json()
@@ -66,18 +65,19 @@ async def get_amazon_session(login: dict) -> Session:
                 await asyncio.sleep(1)
         if not verify_code:
             raise Exception("Código verificado não informado")
-        
 
         await page.fill('input[name="otpCode"]', verify_code)
         await page.click('input[type="submit"]')
         success_el = await page.wait_for_selector('text="Contas e Listas"')
         if not success_el:
-            raise Exception('Elemento sucesso não encontrado')
-    
+            raise Exception("Elemento sucesso não encontrado")
+
         state = await page.context.storage_state()
         cookies = await page.context.cookies()
         local_storage = await page.evaluate("() => JSON.stringify(window.localStorage)")
-        session_storage = await page.evaluate("() => JSON.stringify(window.sessionStorage)")
+        session_storage = await page.evaluate(
+            "() => JSON.stringify(window.sessionStorage)"
+        )
         logger.info("Login realizado com sucesso.")
         return Session(
             state=state,
@@ -86,28 +86,81 @@ async def get_amazon_session(login: dict) -> Session:
             session_storage=json.loads(session_storage),
             login_at=datetime.now().isoformat(),
         )
-        
-# async def fetch_daily_deals(login: dict):
-#     value = await get_value(f"{login['role']}:{login['id']}")
-#     cookies = json.loads(value)['cookies']
 
-#     cookie_jar = httpx.Cookies()
 
-#     for cookie in cookies:
-#         cookie_jar.set(
-#             name=cookie["name"],
-#             value=cookie["value"],
-#             domain=cookie["domain"],
-#             path=cookie["path"],
-#         )
+async def fetch_product(context: BrowserContext, url: str):
+    page = await context.new_page()
+    try:
+        await page.goto(url, timeout=30000)
+        await page.wait_for_timeout(3000)
+        name = await page.text_content("#productTitle")
+        description = ""
+        original_price = await page.text_content("span.basisPrice span.a-offscreen")
+        price_discount = await page.text_content(
+            "span.a-price.priceToPay span.a-price-whole"
+        )
+        discount_percentage = await page.text_content(
+            "span.savingPriceOverride.reinventPriceSavingsPercentageMargin.savingsPercentage"
+        )
+        await page.click('button[title="Texto"]')
+        await page.wait_for_timeout(2000)
+        url = await page.text_content("textarea#amzn-ss-text-shortlink-textarea")
+        thumbnail = await page.get_attribute("#landingImage", "src")
 
-#     url = "https://www.amazon.com.br"
+        return {
+            "name": name.strip(),
+            "description": description.strip(),
+            "original_price": int(re.sub(r"\D|\d{2}$", "", original_price.strip())),
+            "price_discount": int(re.sub(r"\D|\d{2}$", "", price_discount.strip())),
+            "discount_percentage": int(re.sub(r"\D", "", discount_percentage)),
+            "url": url.strip(),
+            "thumbnail": thumbnail.strip(),
+            "fetched_at": datetime.now().isoformat(),
+        }
 
-#     async with httpx.AsyncClient() as client:
-#         response = await client.get(url)
-#         print(response.text)
-#         # tree = HTMLParser(response.text)
+    except Exception as e:
+        print(f"Erro ao processar {url}: {e}")
+        return {"url": url, "error": str(e)}
 
-#         # for node in tree.css('a'):
-#         #     href = node.attributes.get("href")
-#         #     print(href)
+    finally:
+        await page.close()
+
+
+async def fetch_daily_deals(session: Session):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+            ],
+        )
+        page = await apply_stealth_session(browser, session, False)
+        await page.goto("https://www.amazon.com.br/deals")
+
+        await page.wait_for_timeout(3000)
+        products_links = await page.query_selector_all(
+            'a[data-testid="product-card-link"]'
+        )
+
+        links = []
+        for link in products_links:
+            href = await link.get_attribute("href")
+            if href:
+                links.append(href)
+
+        await page.close()
+
+        sem = asyncio.Semaphore(5)
+        results = []
+
+        async def limited_task(url):
+            async with sem:
+                result = await fetch_product(page.context, url)
+                results.append(result)
+
+        await asyncio.gather(*(limited_task(url) for url in set(links)))
+        breakpoint()
+        await browser.close()
+        return results

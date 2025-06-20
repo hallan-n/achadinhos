@@ -1,18 +1,19 @@
-from database.schemas import VerifyCode
 from cache import set_value
 from database.login_persistence import (
     insert_user,
     select_all_logins,
     select_login_by_id,
 )
-from routes.dto import GetLogin, PostLogin
+from database.schemas import VerifyCode
+from external.amazon import get_amazon_session
+from external.instagram import get_instagram_session
 from fastapi import APIRouter, HTTPException
 from logger import logger
-from external.instagram import get_instagram_session
-from external.amazon import get_amazon_session
+from routes.dto import GetLogin, PostLogin
 
 route = APIRouter(prefix="/login", tags=["Login"])
 stored_code = None
+
 
 @route.post("/code")
 async def receive_code(code: VerifyCode):
@@ -20,12 +21,14 @@ async def receive_code(code: VerifyCode):
     stored_code = code.code
     return {"success": True}
 
+
 @route.get("/code")
 async def get_code():
     global stored_code
     code = stored_code
     stored_code = None
     return {"code": code}
+
 
 @route.post("/", response_model=GetLogin)
 async def post_login(login: PostLogin) -> GetLogin:
@@ -37,7 +40,7 @@ async def post_login(login: PostLogin) -> GetLogin:
                 session = await get_amazon_session(login.model_dump())
             case _:
                 logger.error(f"Role {login.role} não esperada")
-                HTTPException(401, f"Role {login.role} não esperada")
+                raise HTTPException(403, f"Role {login.role} não esperada")
 
         if not session:
             raise HTTPException(401, f"Erro ao realizar login no {login.role}")

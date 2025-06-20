@@ -22,7 +22,12 @@ posts = Table(
     Column("id", Integer, primary_key=True),
     Column("description", String(255)),
     Column("path", String(255)),
-    Column("login_id",Integer,ForeignKey("logins.id", ondelete="CASCADE"),nullable=False,),
+    Column(
+        "login_id",
+        Integer,
+        ForeignKey("logins.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
 )
 
 
@@ -49,6 +54,7 @@ class Base:
     def json(self):
         return json.dumps(asdict(self))
 
+
 @dataclass
 class Session(Base):
     state: dict
@@ -56,6 +62,7 @@ class Session(Base):
     local_storage: dict
     session_storage: dict
     login_at: str
+
 
 @dataclass
 class VerifyCode(Base):
