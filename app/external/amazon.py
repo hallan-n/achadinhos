@@ -8,7 +8,7 @@ from database.schemas import Session
 from external.stealth_session import _get_stealth_page, apply_stealth_session
 from logger import logger
 from playwright.async_api import BrowserContext, async_playwright
-
+from database.product_persistence import insert_product
 
 async def get_amazon_session(login: dict) -> Session:
     async with async_playwright() as p:
@@ -112,9 +112,8 @@ async def fetch_product(context: BrowserContext, url: str):
         }
 
     except Exception as e:
-        print(f"Erro ao processar {url}: {e}")
-        return {"url": url, "error": str(e)}
-
+        logger.error(f"Erro ao processar {url}: {e}")
+        raise Exception(f"Erro ao processar {url}: {e}")
     finally:
         await page.close()
 
@@ -129,30 +128,34 @@ async def fetch_daily_deals(session: Session):
                 "--disable-dev-shm-usage",
             ],
         )
-        page = await apply_stealth_session(browser, session, False)
-        await page.goto("https://www.amazon.com.br/deals")
+        try:
+            page = await apply_stealth_session(browser, session, False)
+            await page.goto("https://www.amazon.com.br/deals")
 
-        await page.wait_for_timeout(3000)
-        products_links = await page.query_selector_all(
-            'a[data-testid="product-card-link"]'
-        )
+            await page.wait_for_timeout(3000)
+            products_links = await page.query_selector_all(
+                'a[data-testid="product-card-link"]'
+            )
 
-        links = []
-        for link in products_links:
-            href = await link.get_attribute("href")
-            if href:
-                links.append(href)
+            links = []
+            for link in products_links:
+                href = await link.get_attribute("href")
+                if href:
+                    links.append(href)
 
-        await page.close()
+            await page.close()
 
-        sem = asyncio.Semaphore(5)
-        results = []
+            sem = asyncio.Semaphore(5)
 
-        async def limited_task(url):
-            async with sem:
-                result = await fetch_product(page.context, url)
-                results.append(result)
+            async def limited_task(url):
+                async with sem:
+                    result = await fetch_product(page.context, url)
+                    await insert_product(result)
 
-        await asyncio.gather(*(limited_task(url) for url in set(links)))
-        await browser.close()
-        return results
+            await asyncio.gather(*(limited_task(url) for url in set(links[:1])))
+            await browser.close()
+            logger.info('Buscado todas promoções do dia da Amazon')
+            return True
+        except Exception as e:
+            logger.error(f'Erro ao buscar produtos da Amazon: {e}')
+            raise Exception(f'Erro ao buscar produtos da Amazon: {e}')
