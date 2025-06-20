@@ -22,7 +22,7 @@ posts = Table(
     Column("id", Integer, primary_key=True),
     Column("description", String(255)),
     Column("path", String(255)),
-    Column("user_id", Integer, ForeignKey("users.id")),
+    Column("login_id", Integer, ForeignKey("logins.id")),
 )
 
 
@@ -48,7 +48,6 @@ class Session:
     local_storage: dict
     session_storage: dict
     login_at: str
-    login_id: int
 
     def dict(self):
         return asdict(self)

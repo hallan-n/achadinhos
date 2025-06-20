@@ -1,3 +1,4 @@
+from cache import set_value
 from database.login_persistence import (
     insert_user,
     select_all_logins,
@@ -6,6 +7,7 @@ from database.login_persistence import (
 from dto import GetLogin, PostLogin
 from fastapi import APIRouter, HTTPException
 from logger import logger
+from webbot import get_login_session
 
 route = APIRouter(prefix="/login", tags=["Login"])
 
@@ -13,8 +15,12 @@ route = APIRouter(prefix="/login", tags=["Login"])
 @route.post("/", response_model=GetLogin)
 async def post_login(login: PostLogin) -> GetLogin:
     try:
+        session = await get_login_session(login.model_dump())
+        if not session:
+            raise HTTPException(401, f"Erro ao realizar login no {login.role}")
         resp = await insert_user(login.model_dump())
         logger.info("Login inserido com sucesso.")
+        await set_value(f"{resp['role']}:{resp['id']}", session.json())
         return GetLogin(**resp)
     except Exception as e:
         logger.error(f"Erro ao inserir login: {e}")

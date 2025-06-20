@@ -1,11 +1,13 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from database.schemas import Session
+from logger import logger
 from playwright.async_api import Browser, Page, async_playwright
 
 
 async def _inject_session(page: Page, session: Session):
+    logger.info("Injetando sessão")
     await page.add_init_script(
         f"""() => {{
             const data = {json.dumps(session.local_storage)};
@@ -83,6 +85,7 @@ async def _get_stealth_page(browser: Browser, mobile: bool = False) -> Page:
     };
     """
     )
+    logger.info("Iniciando navegador no modo stealth")
     return page
 
 
@@ -104,17 +107,17 @@ async def get_instagram_session(page: Page, login: dict) -> Session:
     cookies = await page.context.cookies()
     local_storage = await page.evaluate("() => JSON.stringify(window.localStorage)")
     session_storage = await page.evaluate("() => JSON.stringify(window.sessionStorage)")
+    logger.info("Login realizado com sucesso.")
     return Session(
         state=state,
         cookies=cookies,
         local_storage=json.loads(local_storage),
         session_storage=json.loads(session_storage),
         login_at=datetime.now().isoformat(),
-        login_id=login["id"],
     )
 
 
-async def get_login_session(login: dict = None) -> Session | None:
+async def get_login_session(login: dict) -> Session:
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=False,
@@ -127,13 +130,17 @@ async def get_login_session(login: dict = None) -> Session | None:
         page = await _get_stealth_page(browser)
         match login["role"]:
             case "instagram":
+                logger.info("Pegando sessão do instagram")
                 session = await get_instagram_session(page, login)
+            case _:
+                logger.error("Erro ao pegar sessão do instagram")
+                raise Exception("Role inválida")
 
         await browser.close()
         return session
 
 
-async def publish_post(session: Session, post: dict = None):
+async def publish_post(session: Session, post: dict):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=False,
@@ -169,11 +176,12 @@ async def publish_post(session: Session, post: dict = None):
         await page.fill('div[aria-label="Escreva uma legenda..."]', post["description"])
         await page.wait_for_timeout(2000)
         await page.get_by_role("button", name="Compartilhar").click()
-
         await page.wait_for_selector('h3:has-text("Seu post foi compartilhado.")')
+        logger.info("Post enviado com sucesso")
+        await browser.close()
 
 
-async def publish_storie(session: Session, post: dict = None):
+async def publish_storie(session: Session, post: dict):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=False,
@@ -183,7 +191,7 @@ async def publish_storie(session: Session, post: dict = None):
                 "--disable-dev-shm-usage",
             ],
         )
-        page = await _get_stealth_page(browser, mobile=False)
+        page = await _get_stealth_page(browser, mobile=True)
         await _inject_session(page, session)
         await page.goto("https://www.instagram.com/")
 
@@ -192,4 +200,11 @@ async def publish_storie(session: Session, post: dict = None):
         if skip_dialog:
             await skip_dialog.click()
 
-        ...
+        await page.wait_for_timeout(2000)
+        await page.set_input_files('input[type="file"]', post["path"])
+        await page.wait_for_timeout(3000)
+        await page.click("text=Adicionar ao seu story")
+        await page.wait_for_selector("text=Carregando...")
+        await page.wait_for_timeout(3000)
+        logger.info("Story enviado com sucesso")
+        await browser.close()

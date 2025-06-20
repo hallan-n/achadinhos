@@ -8,9 +8,7 @@ async def insert_user(user: dict):
         async with engine.begin() as conn:
             statement = insert(logins).values(**user)
             result = await conn.execute(statement)
-
             inserted_id = result.inserted_primary_key[0]
-
             query = select(logins).where(logins.c.id == inserted_id)
             result = await conn.execute(query)
             row = result.fetchone()
