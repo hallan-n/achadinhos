@@ -28,10 +28,34 @@ async def select_login_by_id(id: int):
         raise Exception(f"Erro ao selecionar usuário do id {id}: {e}")
 
 
+async def select_login_by_id_and_role(id: int, role: str):
+    try:
+        async with engine.begin() as conn:
+            statement = select(logins).where(
+                (logins.c.id == id) & (logins.c.role == role)
+            )
+            result = await conn.execute(statement)
+            row = result.fetchone()
+            return dict(row._mapping) if row else None
+    except Exception as e:
+        raise Exception(f"Erro ao selecionar usuário do id {id}: {e}")
+
+
 async def select_all_logins():
     try:
         async with engine.begin() as conn:
             statement = select(logins).limit(100)
+            result = await conn.execute(statement)
+            row = result.fetchall()
+            return [dict(item._mapping) for item in row]
+    except Exception as e:
+        raise Exception(f"Erro ao selecionar todos usuários: {e}")
+
+
+async def select_all_logins_by_role(role: str):
+    try:
+        async with engine.begin() as conn:
+            statement = select(logins).where(logins.c.role == role).limit(100)
             result = await conn.execute(statement)
             row = result.fetchall()
             return [dict(item._mapping) for item in row]

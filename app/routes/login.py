@@ -2,7 +2,9 @@ from cache import set_value
 from database.login_persistence import (
     insert_user,
     select_all_logins,
+    select_all_logins_by_role,
     select_login_by_id,
+    select_login_by_id_and_role,
 )
 from database.schemas import VerifyCode
 from external.amazon import get_amazon_session
@@ -57,15 +59,31 @@ async def post_login(login: PostLogin) -> GetLogin:
 
 
 @route.get("/", response_model=GetLogin | list[GetLogin])
-async def get_login(id: int = None) -> GetLogin | list[GetLogin]:
+async def get_login(id: int = None, role: str = None) -> GetLogin | list[GetLogin]:
     try:
-        if id:
+        if id and not role:
             login = await select_login_by_id(id)
             if not login:
                 logger.error("Login não encontrado")
                 raise HTTPException(404, "Login não encontrado")
             logger.info("Login encontrado")
             return GetLogin(**login)
+
+        elif role and not id:
+            logins = await select_all_logins_by_role(role)
+            if not logins:
+                logger.error("Login não encontrado")
+                raise HTTPException(404, "Login não encontrado")
+            logger.info("Login encontrado")
+            return [GetLogin(**login) for login in logins]
+        elif id and role:
+            login = await select_login_by_id_and_role(id, role)
+            if not login:
+                logger.error("Login não encontrado")
+                raise HTTPException(404, "Login não encontrado")
+            logger.info("Login encontrado")
+            return GetLogin(**login)
+
         logins = await select_all_logins()
         if not logins:
             logger.error("Nenhum Login não encontrado")

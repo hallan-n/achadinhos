@@ -1,19 +1,13 @@
-# import httpx
-# import json
-# from database.schemas import Session
-# from cache import get_value
 import asyncio
 import json
 import re
 from datetime import datetime
 
 import httpx
-from cache import get_value
 from database.schemas import Session
 from external.stealth_session import _get_stealth_page, apply_stealth_session
 from logger import logger
-from playwright.async_api import Browser, BrowserContext, async_playwright
-from selectolax.parser import HTMLParser
+from playwright.async_api import BrowserContext, async_playwright
 
 
 async def get_amazon_session(login: dict) -> Session:
@@ -115,7 +109,6 @@ async def fetch_product(context: BrowserContext, url: str):
             "discount_percentage": int(re.sub(r"\D", "", discount_percentage)),
             "url": url.strip(),
             "thumbnail": thumbnail.strip(),
-            "fetched_at": datetime.now().isoformat(),
         }
 
     except Exception as e:
@@ -161,6 +154,5 @@ async def fetch_daily_deals(session: Session):
                 results.append(result)
 
         await asyncio.gather(*(limited_task(url) for url in set(links)))
-        breakpoint()
         await browser.close()
         return results
