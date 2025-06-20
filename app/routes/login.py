@@ -4,10 +4,10 @@ from database.login_persistence import (
     select_all_logins,
     select_login_by_id,
 )
-from dto import GetLogin, PostLogin
+from routes.dto import GetLogin, PostLogin
 from fastapi import APIRouter, HTTPException
 from logger import logger
-from webbot import get_login_session
+from external.webbot import get_login_session
 
 route = APIRouter(prefix="/login", tags=["Login"])
 

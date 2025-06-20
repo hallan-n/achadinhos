@@ -9,9 +9,9 @@ logins = Table(
     "logins",
     metadata,
     Column("id", Integer, primary_key=True),
-    Column("user", String(255)),
-    Column("password", String(255)),
-    Column("role", String(255)),
+    Column("user", String(255), nullable=False),
+    Column("password", String(255), nullable=False),
+    Column("role", String(255), nullable=False),
     Column("url_base_site", String(255)),
     Column("url_base_affiliate", String(255)),
 )
@@ -22,7 +22,7 @@ posts = Table(
     Column("id", Integer, primary_key=True),
     Column("description", String(255)),
     Column("path", String(255)),
-    Column("login_id", Integer, ForeignKey("logins.id")),
+    Column("login_id",Integer,ForeignKey("logins.id", ondelete="CASCADE"),nullable=False,),
 )
 
 
